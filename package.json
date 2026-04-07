@@ -1,0 +1,14 @@
+{
+  "name": "pi-qwen",
+  "version": "0.1.0",
+  "description": "Qwen OAuth provider extension for pi",
+  "keywords": ["pi-package"],
+  "license": "MIT",
+  "pi": {
+    "extensions": ["./src/index.ts"]
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-ai": "*",
+    "@mariozechner/pi-coding-agent": "*"
+  }
+}
