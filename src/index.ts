@@ -360,13 +360,4 @@ export default function qwenProviderExtension(pi: ExtensionAPI) {
     return sanitizeQwenPayload(event.payload);
   });
 
-  pi.registerCommand("qwen-provider", {
-    description: "Show Qwen provider setup notes",
-    handler: async (_args, ctx) => {
-      ctx.ui.notify(
-        "Qwen provider loaded. Matching qwen-code behavior: only coder-model is exposed, and it uses /login qwen OAuth.",
-        "info",
-      );
-    },
-  });
 }
