@@ -1,6 +1,6 @@
 # pi-qwen
 
-Qwen OAuth provider extension for [pi](https://www.npmjs.com/package/@mariozechner/pi-coding-agent).
+Qwen OAuth provider extension for [pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent).
 
 ## Features
 
