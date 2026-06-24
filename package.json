@@ -2,10 +2,20 @@
   "name": "pi-qwen",
   "version": "0.1.0",
   "description": "Qwen OAuth provider extension for pi",
-  "keywords": [
-    "pi-package"
-  ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ravshansbox/pi-qwen.git"
+  },
+  "keywords": [
+    "pi",
+    "extension"
+  ],
+  "files": [
+    "index.ts",
+    "README.md",
+    "LICENSE"
+  ],
   "pi": {
     "extensions": [
       "./index.ts"
@@ -17,5 +27,8 @@
   },
   "devDependencies": {
     "typescript": "^6.0.3"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
   }
 }
