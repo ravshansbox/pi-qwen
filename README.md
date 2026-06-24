@@ -37,4 +37,4 @@ This package is intentionally aligned with qwen-code's Qwen OAuth path:
 
 ## Files
 
-- `src/index.ts` — pi extension entrypoint
+- `index.ts` — pi extension entrypoint
