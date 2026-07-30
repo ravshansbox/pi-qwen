@@ -3,10 +3,23 @@
   "version": "0.1.0",
   "description": "Qwen OAuth provider extension for pi",
   "license": "MIT",
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ravshansbox/pi-qwen.git"
   },
+  "homepage": "https://github.com/ravshansbox/pi-qwen#readme",
+  "bugs": {
+    "url": "https://github.com/ravshansbox/pi-qwen/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "provider"
+  ],
   "files": [
     "index.ts",
     "README.md",
@@ -25,19 +38,6 @@
     "@types/node": "^26.1.2",
     "typescript": "^6.0.3"
   },
-  "type": "module",
-  "homepage": "https://github.com/ravshansbox/pi-qwen#readme",
-  "bugs": {
-    "url": "https://github.com/ravshansbox/pi-qwen/issues"
-  },
-  "publishConfig": {
-    "access": "public"
-  },
-  "keywords": [
-    "pi-package",
-    "pi-extension",
-    "provider"
-  ],
   "scripts": {
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck"
