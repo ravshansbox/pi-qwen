@@ -1,13 +1,6 @@
 # pi-qwen
 
-Qwen OAuth provider extension for [pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent).
-
-## Features
-
-- Qwen OAuth device-code login via `/login qwen`
-- Uses the Qwen OAuth endpoint discovered from login credentials
-- Exposes only `coder-model`, matching qwen-code behavior
-- Applies Qwen/DashScope request headers and payload normalization needed for `coder-model`
+Qwen OAuth provider extension for pi.
 
 ## Install
 
@@ -17,24 +10,26 @@ pi install git:github.com/ravshansbox/pi-qwen
 
 ## Usage
 
+Pi loads the provider from `./index.ts` and registers a `qwen` provider:
+
+- Qwen OAuth device-code login via `/login qwen`
+- Uses the Qwen OAuth endpoint discovered from login credentials
+- Exposes only `coder-model`, matching qwen-code behaviour
+- Applies Qwen/DashScope request headers and payload normalisation needed for `coder-model`
+
+Sign in and select the model:
+
 ```text
 /reload
 /login qwen
 /model
 ```
 
-Then select:
+Then select `qwen/coder-model`.
 
-- `qwen/coder-model`
+## Development
 
-## Notes
-
-This package is intentionally aligned with qwen-code's Qwen OAuth path:
-
-- only `coder-model` is exposed
-- OAuth credentials determine the runtime API base URL
-- request payload is normalized for the Qwen OAuth endpoint
-
-## Files
-
-- `index.ts` — pi extension entrypoint
+```bash
+npm install
+npm run check
+```
