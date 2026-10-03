@@ -1,8 +1,5 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import type {
-  OAuthCredentials,
-  OAuthLoginCallbacks,
-} from '@earendil-works/pi-ai';
+import type { OAuthCredentials, OAuthLoginCallbacks } from '@earendil-works/pi-ai';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 
 const QWEN_OAUTH_BASE_URL = 'https://chat.qwen.ai';
@@ -11,8 +8,7 @@ const QWEN_TOKEN_ENDPOINT = `${QWEN_OAUTH_BASE_URL}/api/v1/oauth2/token`;
 const QWEN_CLIENT_ID = 'f0304373b74a44d2b584a3fb70ca9e56';
 const QWEN_SCOPE = 'openid profile email model.completion';
 const QWEN_DEVICE_GRANT_TYPE = 'urn:ietf:params:oauth:grant-type:device_code';
-const QWEN_DEFAULT_BASE_URL =
-  'https://dashscope.aliyuncs.com/compatible-mode/v1';
+const QWEN_DEFAULT_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
 const DEFAULT_POLL_INTERVAL_MS = 2000;
 const EXPIRY_SAFETY_BUFFER_MS = 5 * 60 * 1000;
 
@@ -53,9 +49,7 @@ function generatePkce() {
 function getQwenBaseUrl(resourceUrl?: string): string {
   if (!resourceUrl) return QWEN_DEFAULT_BASE_URL;
 
-  const normalized = resourceUrl.startsWith('http')
-    ? resourceUrl
-    : `https://${resourceUrl}`;
+  const normalized = resourceUrl.startsWith('http') ? resourceUrl : `https://${resourceUrl}`;
 
   return normalized.endsWith('/v1') ? normalized : `${normalized}/v1`;
 }
@@ -133,9 +127,7 @@ async function startDeviceFlow(): Promise<{
     }),
   });
 
-  const data = await parseJsonResponse<DeviceCodeResponse & OAuthErrorResponse>(
-    response,
-  );
+  const data = await parseJsonResponse<DeviceCodeResponse & OAuthErrorResponse>(response);
 
   if (!response.ok || !data?.device_code || !data.verification_uri) {
     throw new Error(
@@ -179,9 +171,7 @@ async function pollForToken(
       signal: signal ?? null,
     });
 
-    const data = await parseJsonResponse<TokenResponse & OAuthErrorResponse>(
-      response,
-    );
+    const data = await parseJsonResponse<TokenResponse & OAuthErrorResponse>(response);
 
     if (response.ok && data?.access_token) {
       return data;
@@ -204,17 +194,13 @@ async function pollForToken(
       );
     }
 
-    throw new Error(
-      `Qwen token request failed: ${response.status} ${response.statusText}`,
-    );
+    throw new Error(`Qwen token request failed: ${response.status} ${response.statusText}`);
   }
 
   throw new Error('Qwen authentication timed out. Please try again.');
 }
 
-async function loginQwen(
-  callbacks: OAuthLoginCallbacks,
-): Promise<OAuthCredentials> {
+async function loginQwen(callbacks: OAuthLoginCallbacks): Promise<OAuthCredentials> {
   const { device, verifier } = await startDeviceFlow();
   callbacks.onAuth({
     url: device.verification_uri_complete || device.verification_uri,
@@ -239,9 +225,7 @@ async function loginQwen(
   };
 }
 
-async function refreshQwenToken(
-  credentials: OAuthCredentials,
-): Promise<OAuthCredentials> {
+async function refreshQwenToken(credentials: OAuthCredentials): Promise<OAuthCredentials> {
   if (!credentials.refresh) {
     throw new Error('No Qwen refresh token available. Please log in again.');
   }
@@ -259,9 +243,7 @@ async function refreshQwenToken(
     }),
   });
 
-  const data = await parseJsonResponse<TokenResponse & OAuthErrorResponse>(
-    response,
-  );
+  const data = await parseJsonResponse<TokenResponse & OAuthErrorResponse>(response);
 
   if (!response.ok || !data?.access_token) {
     if (data?.error) {
@@ -269,9 +251,7 @@ async function refreshQwenToken(
         `Qwen token refresh failed: ${describeOAuthError(data.error, data.error_description)}`,
       );
     }
-    throw new Error(
-      `Qwen token refresh failed: ${response.status} ${response.statusText}`,
-    );
+    throw new Error(`Qwen token refresh failed: ${response.status} ${response.statusText}`);
   }
 
   return {
@@ -360,9 +340,7 @@ export default function qwenProviderExtension(pi: ExtensionAPI) {
       refreshToken: refreshQwenToken,
       getApiKey: (credentials) => credentials.access,
       modifyModels: (models, credentials) => {
-        const oauthBaseUrl = getQwenBaseUrl(
-          credentials['enterpriseUrl'] as string | undefined,
-        );
+        const oauthBaseUrl = getQwenBaseUrl(credentials['enterpriseUrl'] as string | undefined);
         return models.map((model) => {
           if (model.provider !== 'qwen') return model;
           if (model.id === 'coder-model') {
