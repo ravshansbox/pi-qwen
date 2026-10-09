@@ -42,5 +42,11 @@
     "prettier": "^3.9.9",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.1"
+  },
+  "files": [
+    "index.ts"
+  ],
+  "publishConfig": {
+    "access": "public"
   }
 }
