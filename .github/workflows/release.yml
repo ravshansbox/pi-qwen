@@ -1,0 +1,80 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check package
+        run: npm run check
+
+      - name: Create release
+        run: npx --yes semantic-release@25.0.9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Read released version
+        id: version
+        run: |
+          tag=$(git tag --points-at HEAD 'v*' | head -n 1)
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: release
+    if: needs.release.outputs.version != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: v${{ needs.release.outputs.version }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set package version
+        run: npm version "$VERSION" --no-git-tag-version
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+
+      - name: Publish package
+        run: npm publish
