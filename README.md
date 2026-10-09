@@ -5,7 +5,7 @@ Qwen OAuth provider extension for pi.
 ## Install
 
 ```bash
-pi install git:github.com/ravshansbox/pi-qwen
+pi install npm:@ravshansbox/pi-qwen
 ```
 
 ## Usage
