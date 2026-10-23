@@ -38,7 +38,7 @@ jobs:
         run: npm run check
 
       - name: Create release
-        run: npx --yes semantic-release@25.0.9
+        run: npx --yes -p semantic-release@25.0.9 -p conventional-changelog-conventionalcommits@9.3.1 semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
