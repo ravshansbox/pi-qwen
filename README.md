@@ -8,6 +8,8 @@ Qwen OAuth provider extension for pi.
 pi install npm:@ravshansbox/pi-qwen
 ```
 
+Add `-l` to install it in project settings.
+
 ## Usage
 
 Pi loads the provider from `./index.ts` and registers a `qwen` provider:
