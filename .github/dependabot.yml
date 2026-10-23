@@ -7,6 +7,9 @@ updates:
     groups:
       npm:
         patterns: ['*']
+    ignore:
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
     commit-message:
       prefix: chore
       prefix-development: chore
