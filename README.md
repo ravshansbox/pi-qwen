@@ -12,7 +12,7 @@ Add `-l` to install it in project settings.
 
 ## Usage
 
-Pi loads the provider from `./index.ts` and registers a `qwen` provider:
+Pi loads the extension from `./index.ts` and registers a `qwen` provider:
 
 - Qwen OAuth device-code login via `/login qwen`
 - Uses the Qwen OAuth endpoint discovered from login credentials
