@@ -304,7 +304,7 @@ function sanitizeQwenPayload(payload: unknown): unknown {
   return next;
 }
 
-export default function qwenProviderExtension(pi: ExtensionAPI) {
+export default function (pi: ExtensionAPI) {
   pi.registerProvider('qwen', {
     baseUrl: QWEN_DEFAULT_BASE_URL,
     apiKey: 'DASHSCOPE_API_KEY',
