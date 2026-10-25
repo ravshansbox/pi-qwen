@@ -28,7 +28,8 @@
     "lint:fix": "oxlint --fix",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
-    "check": "npm run typecheck && npm run lint && npm run format:check"
+    "test": "node --test",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm test"
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",
