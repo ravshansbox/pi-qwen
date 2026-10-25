@@ -225,7 +225,10 @@ async function loginQwen(callbacks: OAuthLoginCallbacks): Promise<OAuthCredentia
   };
 }
 
-async function refreshQwenToken(credentials: OAuthCredentials): Promise<OAuthCredentials> {
+async function refreshQwenToken(
+  credentials: OAuthCredentials,
+  signal?: AbortSignal,
+): Promise<OAuthCredentials> {
   if (!credentials.refresh) {
     throw new Error('No Qwen refresh token available. Please log in again.');
   }
@@ -241,6 +244,7 @@ async function refreshQwenToken(credentials: OAuthCredentials): Promise<OAuthCre
       refresh_token: credentials.refresh,
       client_id: QWEN_CLIENT_ID,
     }),
+    signal: signal ?? null,
   });
 
   const data = await parseJsonResponse<TokenResponse & OAuthErrorResponse>(response);
