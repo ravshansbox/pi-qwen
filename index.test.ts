@@ -40,3 +40,23 @@ test('token refresh stops when the abort signal fires', async () => {
     oauth.refreshToken({ refresh: 'r', access: 'a', expires: 0 }, controller.signal),
   );
 });
+
+test('login stops when cancelled during the device code request', async () => {
+  globalThis.fetch = ((_url: string, init?: RequestInit) =>
+    new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+    })) as Fetch;
+  const { oauth } = loadProvider();
+  const controller = new AbortController();
+  const login = oauth.login({ onAuth: () => {}, signal: controller.signal });
+  controller.abort();
+
+  const outcome = await Promise.race([
+    login.then(
+      () => 'resolved',
+      () => 'rejected',
+    ),
+    new Promise((resolve) => setTimeout(() => resolve('pending'), 100)),
+  ]);
+  assert.equal(outcome, 'rejected');
+});

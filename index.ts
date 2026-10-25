@@ -106,7 +106,7 @@ async function parseJsonResponse<T>(response: Response): Promise<T | null> {
   }
 }
 
-async function startDeviceFlow(): Promise<{
+async function startDeviceFlow(signal?: AbortSignal): Promise<{
   device: DeviceCodeResponse;
   verifier: string;
 }> {
@@ -125,6 +125,7 @@ async function startDeviceFlow(): Promise<{
       code_challenge: challenge,
       code_challenge_method: 'S256',
     }),
+    signal: signal ?? null,
   });
 
   const data = await parseJsonResponse<DeviceCodeResponse & OAuthErrorResponse>(response);
@@ -201,7 +202,7 @@ async function pollForToken(
 }
 
 async function loginQwen(callbacks: OAuthLoginCallbacks): Promise<OAuthCredentials> {
-  const { device, verifier } = await startDeviceFlow();
+  const { device, verifier } = await startDeviceFlow(callbacks.signal);
   callbacks.onAuth({
     url: device.verification_uri_complete || device.verification_uri,
     ...(device.verification_uri_complete
