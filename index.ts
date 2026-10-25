@@ -184,7 +184,7 @@ async function pollForToken(
       continue;
     }
     if (error === 'slow_down') {
-      intervalMs = Math.min(intervalMs + 3000, 10000);
+      intervalMs = Math.max(intervalMs, Math.min(intervalMs + 3000, 10000));
       await sleep(intervalMs, signal);
       continue;
     }

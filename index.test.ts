@@ -60,3 +60,36 @@ test('login stops when cancelled during the device code request', async () => {
   ]);
   assert.equal(outcome, 'rejected');
 });
+
+test('login never polls faster after the server asks it to slow down', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const requests: string[] = [];
+  globalThis.fetch = (async (url: string) => {
+    requests.push(url);
+    if (url.endsWith('/device/code')) {
+      return Response.json({
+        device_code: 'd',
+        user_code: 'u',
+        verification_uri: 'https://example.com',
+        expires_in: 600,
+        interval: 15,
+      });
+    }
+    return Response.json({ error: 'slow_down' }, { status: 400 });
+  }) as Fetch;
+  const { oauth } = loadProvider();
+  const controller = new AbortController();
+  const login = oauth.login({ onAuth: () => {}, signal: controller.signal });
+  login.catch(() => {});
+  const flush = () => new Promise((resolve) => setImmediate(resolve));
+
+  await flush();
+  await flush();
+  const pollsBefore = requests.length;
+  t.mock.timers.tick(14_000);
+  await flush();
+  await flush();
+
+  assert.equal(requests.length, pollsBefore);
+  controller.abort();
+});
