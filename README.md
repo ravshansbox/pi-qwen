@@ -1,6 +1,6 @@
 # pi-qwen
 
-Qwen OAuth provider extension for pi.
+Qwen subscription OAuth provider extension for pi.
 
 ## Install
 
@@ -14,10 +14,12 @@ Add `-l` to install it in project settings.
 
 Pi loads the extension from `./index.ts` and registers a `qwen` provider:
 
-- Qwen OAuth device-code login via `/login qwen`
-- Uses the Qwen OAuth endpoint discovered from login credentials
-- Exposes only `coder-model`, matching qwen-code behaviour
-- Applies Qwen/DashScope request headers and payload normalisation needed for `coder-model`
+- Qwen account device-code login via `/login qwen`, matching Qwen Code `1.0.0-preview`
+- Uses `https://auth.qwen.ai/api/oauth` for login and token refresh
+- Preserves the server-provided `XXXX-XXXX` code and opens Qwen Code's authorisation URL
+- Exposes `qwen3.8-max` via `https://api.qwen.ai/compatible-mode/v1`
+
+Requires a Qwen subscription with access to this model. This replaces the legacy `coder-model` flow; existing users must sign in again.
 
 Sign in and select the model:
 
@@ -27,7 +29,7 @@ Sign in and select the model:
 /model
 ```
 
-Then select `qwen/coder-model`.
+Then select `qwen/qwen3.8-max`.
 
 ## Development
 
