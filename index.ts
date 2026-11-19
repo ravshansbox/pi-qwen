@@ -1,18 +1,15 @@
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { OAuthCredentials, OAuthLoginCallbacks } from '@earendil-works/pi-ai';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 
-const QWEN_OAUTH_BASE_URL = 'https://chat.qwen.ai';
-const QWEN_DEVICE_CODE_ENDPOINT = `${QWEN_OAUTH_BASE_URL}/api/v1/oauth2/device/code`;
-const QWEN_TOKEN_ENDPOINT = `${QWEN_OAUTH_BASE_URL}/api/v1/oauth2/token`;
-const QWEN_CLIENT_ID = 'f0304373b74a44d2b584a3fb70ca9e56';
-const QWEN_SCOPE = 'openid profile email model.completion';
+const QWEN_OAUTH_BASE_URL = 'https://auth.qwen.ai/api/oauth';
+const QWEN_DEVICE_CODE_ENDPOINT = `${QWEN_OAUTH_BASE_URL}/device/code`;
+const QWEN_TOKEN_ENDPOINT = `${QWEN_OAUTH_BASE_URL}/token`;
+const QWEN_CLIENT_ID = 'qwen-code-cli';
+const QWEN_SCOPE = 'model:invoke profile:read';
 const QWEN_DEVICE_GRANT_TYPE = 'urn:ietf:params:oauth:grant-type:device_code';
-const QWEN_DEFAULT_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
+const QWEN_DEFAULT_BASE_URL = 'https://api.qwen.ai/compatible-mode/v1';
 const DEFAULT_POLL_INTERVAL_MS = 2000;
-const EXPIRY_SAFETY_BUFFER_MS = 5 * 60 * 1000;
-
-type ThinkingLevel = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+const EXPIRY_SAFETY_BUFFER_MS = 30_000;
 
 interface DeviceCodeResponse {
   device_code: string;
@@ -33,25 +30,10 @@ interface TokenResponse {
   refresh_token?: string;
   token_type: string;
   expires_in: number;
-  resource_url?: string;
 }
 
 function toFormBody(values: Record<string, string>): string {
   return new URLSearchParams(values).toString();
-}
-
-function generatePkce() {
-  const verifier = randomBytes(32).toString('base64url');
-  const challenge = createHash('sha256').update(verifier).digest('base64url');
-  return { verifier, challenge };
-}
-
-function getQwenBaseUrl(resourceUrl?: string): string {
-  if (!resourceUrl) return QWEN_DEFAULT_BASE_URL;
-
-  const normalized = resourceUrl.startsWith('http') ? resourceUrl : `https://${resourceUrl}`;
-
-  return normalized.endsWith('/v1') ? normalized : `${normalized}/v1`;
 }
 
 function computeExpiry(expiresInSeconds: number): number {
@@ -96,41 +78,68 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
-async function parseJsonResponse<T>(response: Response): Promise<T | null> {
+async function parseJsonResponse<T>(response: Response): Promise<{
+  data: T | null;
+  text: string;
+}> {
   const text = await response.text();
-  if (!text) return null;
   try {
-    return JSON.parse(text) as T;
+    return { data: JSON.parse(text) as T, text };
   } catch {
-    return null;
+    return { data: null, text };
   }
 }
 
-async function startDeviceFlow(signal?: AbortSignal): Promise<{
-  device: DeviceCodeResponse;
-  verifier: string;
-}> {
-  const { verifier, challenge } = generatePkce();
+function describeTokenResponse(response: Response, text: string, secrets: string[]): string {
+  const url = response.url ? new URL(response.url) : null;
+  let details = JSON.stringify({
+    url: url ? `${url.origin}${url.pathname}` : QWEN_TOKEN_ENDPOINT,
+    redirected: response.redirected,
+    contentType: response.headers.get('content-type'),
+    allow: response.headers.get('allow'),
+    server: response.headers.get('server'),
+    requestId: response.headers.get('x-request-id'),
+    body: text
+      .replace(
+        /((?:access_token|refresh_token|id_token|device_code|user_code|code_verifier|code_challenge)["']?\s*[:=]\s*)(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s&<>,;}]+)/gi,
+        '$1[redacted]',
+      )
+      .replace(/\s+/g, ' ')
+      .trim(),
+  });
+  for (const secret of secrets) {
+    if (secret) {
+      details = details.replaceAll(secret, '[redacted]');
+      details = details.replaceAll(encodeURIComponent(secret), '[redacted]');
+    }
+  }
+  return details.length > 2000 ? `${details.slice(0, 2000)}…` : details;
+}
 
+async function startDeviceFlow(signal?: AbortSignal): Promise<DeviceCodeResponse> {
   const response = await fetch(QWEN_DEVICE_CODE_ENDPOINT, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
       Accept: 'application/json',
-      'x-request-id': randomUUID(),
     },
     body: toFormBody({
       client_id: QWEN_CLIENT_ID,
       scope: QWEN_SCOPE,
-      code_challenge: challenge,
-      code_challenge_method: 'S256',
     }),
     signal: signal ?? null,
   });
 
-  const data = await parseJsonResponse<DeviceCodeResponse & OAuthErrorResponse>(response);
+  const { data } = await parseJsonResponse<DeviceCodeResponse & OAuthErrorResponse>(response);
 
-  if (!response.ok || !data?.device_code || !data.verification_uri) {
+  if (
+    !response.ok ||
+    !data?.device_code ||
+    !data.user_code ||
+    !Number.isFinite(data.expires_in) ||
+    data.expires_in <= 0 ||
+    (data.interval !== undefined && (!Number.isFinite(data.interval) || data.interval <= 0))
+  ) {
     throw new Error(
       data?.error
         ? `Qwen device authorization failed: ${describeOAuthError(data.error, data.error_description)}`
@@ -138,12 +147,12 @@ async function startDeviceFlow(signal?: AbortSignal): Promise<{
     );
   }
 
-  return { device: data, verifier };
+  return data;
 }
 
 async function pollForToken(
   deviceCode: string,
-  verifier: string,
+  userCode: string,
   intervalSeconds: number | undefined,
   expiresIn: number,
   signal?: AbortSignal,
@@ -155,7 +164,8 @@ async function pollForToken(
   );
 
   while (Date.now() < deadline) {
-    if (signal?.aborted) throw new Error('Qwen login cancelled');
+    await sleep(intervalMs, signal);
+    if (Date.now() >= deadline) break;
 
     const response = await fetch(QWEN_TOKEN_ENDPOINT, {
       method: 'POST',
@@ -167,25 +177,20 @@ async function pollForToken(
         grant_type: QWEN_DEVICE_GRANT_TYPE,
         client_id: QWEN_CLIENT_ID,
         device_code: deviceCode,
-        code_verifier: verifier,
       }),
       signal: signal ?? null,
     });
 
-    const data = await parseJsonResponse<TokenResponse & OAuthErrorResponse>(response);
+    const { data, text } = await parseJsonResponse<TokenResponse & OAuthErrorResponse>(response);
 
     if (response.ok && data?.access_token) {
       return data;
     }
 
     const error = data?.error;
-    if (error === 'authorization_pending') {
-      await sleep(intervalMs, signal);
-      continue;
-    }
+    if (error === 'authorization_pending') continue;
     if (error === 'slow_down') {
-      intervalMs = Math.max(intervalMs, Math.min(intervalMs + 3000, 10000));
-      await sleep(intervalMs, signal);
+      intervalMs += 5000;
       continue;
     }
 
@@ -195,24 +200,27 @@ async function pollForToken(
       );
     }
 
-    throw new Error(`Qwen token request failed: ${response.status} ${response.statusText}`);
+    throw new Error(
+      `Qwen token request failed: ${response.status} ${response.statusText}. Response: ${describeTokenResponse(response, text, [deviceCode, userCode])}`,
+    );
   }
 
   throw new Error('Qwen authentication timed out. Please try again.');
 }
 
 async function loginQwen(callbacks: OAuthLoginCallbacks): Promise<OAuthCredentials> {
-  const { device, verifier } = await startDeviceFlow(callbacks.signal);
+  const device = await startDeviceFlow(callbacks.signal);
+  const url = new URL('https://chat.qwen.ai/authorize');
+  url.searchParams.set('user_code', device.user_code);
+  url.searchParams.set('client', 'qwen-code');
   callbacks.onAuth({
-    url: device.verification_uri_complete || device.verification_uri,
-    ...(device.verification_uri_complete
-      ? {}
-      : { instructions: `Enter code: ${device.user_code}` }),
+    url: url.toString(),
+    instructions: `Enter code: ${device.user_code}`,
   });
 
   const token = await pollForToken(
     device.device_code,
-    verifier,
+    device.user_code,
     device.interval,
     device.expires_in,
     callbacks.signal,
@@ -222,7 +230,6 @@ async function loginQwen(callbacks: OAuthLoginCallbacks): Promise<OAuthCredentia
     refresh: token.refresh_token || '',
     access: token.access_token,
     expires: computeExpiry(token.expires_in),
-    enterpriseUrl: token.resource_url,
   };
 }
 
@@ -248,7 +255,7 @@ async function refreshQwenToken(
     signal: signal ?? null,
   });
 
-  const data = await parseJsonResponse<TokenResponse & OAuthErrorResponse>(response);
+  const { data } = await parseJsonResponse<TokenResponse & OAuthErrorResponse>(response);
 
   if (!response.ok || !data?.access_token) {
     if (data?.error) {
@@ -263,110 +270,36 @@ async function refreshQwenToken(
     refresh: data.refresh_token || credentials.refresh,
     access: data.access_token,
     expires: computeExpiry(data.expires_in),
-    enterpriseUrl: data.resource_url ?? credentials['enterpriseUrl'],
   };
-}
-
-function qwenReasoningEffortMap(): Record<ThinkingLevel, string> {
-  return {
-    minimal: 'low',
-    low: 'low',
-    medium: 'medium',
-    high: 'high',
-    xhigh: 'high',
-  };
-}
-
-function sanitizeQwenPayload(payload: unknown): unknown {
-  if (!payload || typeof payload !== 'object') return payload;
-
-  const next = { ...(payload as Record<string, unknown>) };
-
-  delete next['store'];
-  delete next['parallel_tool_calls'];
-  delete next['stream_options'];
-  delete next['service_tier'];
-  delete next['user'];
-  delete next['metadata'];
-
-  if (Array.isArray(next['tools']) && next['tools'].length === 0) {
-    delete next['tools'];
-    delete next['tool_choice'];
-  }
-
-  if (next['tool_choice'] === 'auto' && !Array.isArray(next['tools'])) {
-    delete next['tool_choice'];
-  }
-
-  if (next['temperature'] == null) delete next['temperature'];
-  if (next['top_p'] == null) delete next['top_p'];
-  if (next['reasoning_effort'] == null) delete next['reasoning_effort'];
-
-  if (!('enable_thinking' in next)) {
-    next['enable_thinking'] = false;
-  }
-
-  return next;
 }
 
 export default function (pi: ExtensionAPI) {
   pi.registerProvider('qwen', {
     baseUrl: QWEN_DEFAULT_BASE_URL,
-    apiKey: 'DASHSCOPE_API_KEY',
     api: 'openai-completions',
     headers: {
       Accept: 'application/json',
-      'X-DashScope-CacheControl': 'enable',
-      'X-DashScope-AuthType': 'qwen-oauth',
-      'X-DashScope-UserAgent': 'QwenCode/pi-extension',
-      'User-Agent': 'QwenCode/pi-extension',
     },
     models: [
       {
-        id: 'coder-model',
-        name: 'coder-model',
-        reasoning: true,
+        id: 'qwen3.8-max',
+        name: 'Qwen 3.8 Max',
+        reasoning: false,
         input: ['text', 'image'],
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
         contextWindow: 1_000_000,
-        maxTokens: 65_536,
-        thinkingLevelMap: qwenReasoningEffortMap(),
+        maxTokens: 32_000,
         compat: {
           supportsDeveloperRole: false,
-          supportsReasoningEffort: true,
           maxTokensField: 'max_tokens',
-          thinkingFormat: 'qwen',
         },
       },
     ],
     oauth: {
-      name: 'Qwen',
+      name: 'Qwen Account',
       login: loginQwen,
       refreshToken: refreshQwenToken,
       getApiKey: (credentials) => credentials.access,
-      modifyModels: (models, credentials) => {
-        const oauthBaseUrl = getQwenBaseUrl(credentials['enterpriseUrl'] as string | undefined);
-        return models.map((model) => {
-          if (model.provider !== 'qwen') return model;
-          if (model.id === 'coder-model') {
-            return {
-              ...model,
-              baseUrl: oauthBaseUrl,
-              headers: {
-                ...model.headers,
-                'X-DashScope-AuthType': 'qwen-oauth',
-              },
-            };
-          }
-          return model;
-        });
-      },
     },
-  });
-
-  pi.on('before_provider_request', (event) => {
-    const payload = event.payload as { model?: unknown } | undefined;
-    if (payload?.model !== 'coder-model') return;
-    return sanitizeQwenPayload(event.payload);
   });
 }
